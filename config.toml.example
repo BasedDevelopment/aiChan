@@ -1,0 +1,19 @@
+# Rename this to config.toml
+
+[discord]
+token = ""
+msgChan = [
+    "",
+]
+bannedWords = ["suicide"]
+bannedUsers = [""]
+
+[ai]
+[ai.mod]
+token = ""
+
+[ai.chat]
+token = ""
+
+[ai.draw]
+token = ""
