@@ -81,6 +81,12 @@ func draw(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
 		return
 	}
 	if result["data"] == nil {
+		if result["error"] != nil {
+			errMsg := result["error"].(map[string]interface{})["message"].(string)
+			log.Error().Str("user", user).Str("prompt", msg).Str("error", errMsg).Msg("Draw: error")
+			s.ChannelMessageSendReply(m.ChannelID, "Draw: "+errMsg, m.Reference())
+			return
+		}
 		resultStr := fmt.Sprintf("%#v", result)
 		log.Error().Str("user", user).Str("prompt", msg).Str("resp", resultStr).Msg("Draw: data is nil")
 		s.ChannelMessageSendReply(m.ChannelID, "Draw: data is nil (likely OpenAI rejecting request due to inappropriate prompt)", m.Reference())
