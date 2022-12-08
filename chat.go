@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/bwmarrin/discordgo"
@@ -84,13 +85,15 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
 
 	// Handle response
 	if result == nil {
-		log.Error().Str("user", user).Str("prompt", msg).Msg("Chat: result is nil")
+		respRead, _ := io.ReadAll(resp.Body)
+		respStr := string(respRead)
+		log.Warn().Str("user", user).Str("resp", respStr).Str("prompt", msg).Msg("Chat: result is nil")
 		s.ChannelMessageSendReply(m.ChannelID, "Chat: results is nil", m.Reference())
 		return
 	}
 	if result["choices"] == nil {
 		resultStr := fmt.Sprintf("%#v", result)
-		log.Error().Str("user", user).Str("prompt", msg).Str("resp", resultStr).Msg("Chat: choices is nil")
+		log.Warn().Str("user", user).Str("prompt", msg).Str("resp", resultStr).Msg("Chat: choices is nil")
 		s.ChannelMessageSendReply(m.ChannelID, "Chat: choices is nil", m.Reference())
 		return
 	}

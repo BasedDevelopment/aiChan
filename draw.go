@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/bwmarrin/discordgo"
@@ -76,19 +77,21 @@ func draw(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
 
 	// Handle respons
 	if result == nil {
-		log.Error().Str("user", user).Str("prompt", msg).Msg("Chat: result is nil")
+		respRead, _ := io.ReadAll(resp.Body)
+		respStr := string(respRead)
+		log.Error().Str("user", user).Str("resp", respStr).Str("prompt", msg).Msg("Chat: result is nil")
 		s.ChannelMessageSendReply(m.ChannelID, "Draw: result is nil", m.Reference())
 		return
 	}
 	if result["data"] == nil {
 		if result["error"] != nil {
 			errMsg := result["error"].(map[string]interface{})["message"].(string)
-			log.Error().Str("user", user).Str("prompt", msg).Str("error", errMsg).Msg("Draw: error")
+			log.Warn().Str("user", user).Str("prompt", msg).Str("error", errMsg).Msg("Draw: error")
 			s.ChannelMessageSendReply(m.ChannelID, "Draw: "+errMsg, m.Reference())
 			return
 		}
 		resultStr := fmt.Sprintf("%#v", result)
-		log.Error().Str("user", user).Str("prompt", msg).Str("resp", resultStr).Msg("Draw: data is nil")
+		log.Warn().Str("user", user).Str("prompt", msg).Str("resp", resultStr).Msg("Draw: data is nil")
 		s.ChannelMessageSendReply(m.ChannelID, "Draw: data is nil (likely OpenAI rejecting request due to inappropriate prompt)", m.Reference())
 		return
 	}

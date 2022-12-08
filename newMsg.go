@@ -52,10 +52,10 @@ func newMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if isPrefix == false {
 		return
 	}
-	msg := m.Content[3:]
-	if len(msg) <= 3 {
+	if len(m.Content) <= 4 {
 		return
 	}
+	msg := m.Content[3:]
 	if msg[0] == ' ' {
 		msg = msg[1:]
 	}
