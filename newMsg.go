@@ -82,14 +82,16 @@ func newMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
 			Str("msg", msg).
 			Str("user", user).
 			Msg("AI Chat Request")
-		go mod(s, m, msg)
-		go chat(s, m, msg)
+		if proceed := mod(s, m, msg); proceed == true {
+			chat(s, m, msg)
+		}
 	case isDraw:
 		log.Info().
 			Str("msg", msg).
 			Str("user", user).
 			Msg("AI Draw Request")
-		go mod(s, m, msg)
-		go draw(s, m, msg)
+		if proceed := mod(s, m, msg); proceed == true {
+			draw(s, m, msg)
+		}
 	}
 }

@@ -27,7 +27,9 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func mod(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
+func mod(s *discordgo.Session, m *discordgo.MessageCreate, msg string) (proceed bool) {
+	proceed = false
+
 	// Token
 	token := k.String("ai.mod.token")
 	var bearer = "Bearer " + token
@@ -87,5 +89,7 @@ func mod(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
 	} else {
 		log.Info().Str("prompt", msg).Str("user", user).Msg("Not flagged")
 		s.MessageReactionAdd(m.ChannelID, m.Reference().MessageID, "✅")
+		proceed = true
+		return
 	}
 }
