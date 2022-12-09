@@ -48,7 +48,7 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
 		Model:             "text-davinci-003",
 		Prompt:            msg,
 		Temperature:       0.9,
-		Max_tokens:        500,
+		Max_tokens:        350,
 		Top_p:             1,
 		Frequency_penalty: 0,
 		Presence_penalty:  0.6,

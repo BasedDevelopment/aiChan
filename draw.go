@@ -79,7 +79,7 @@ func draw(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
 	if result == nil {
 		respRead, _ := io.ReadAll(resp.Body)
 		respStr := string(respRead)
-		log.Error().Str("user", user).Str("resp", respStr).Str("prompt", msg).Msg("Chat: result is nil")
+		log.Error().Str("user", user).Str("resp", respStr).Str("prompt", msg).Msg("Draw: result is nil")
 		s.ChannelMessageSendReply(m.ChannelID, "Draw: result is nil", m.Reference())
 		return
 	}
