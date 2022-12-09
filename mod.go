@@ -41,7 +41,7 @@ func mod(s *discordgo.Session, m *discordgo.MessageCreate, msg string) (proceed 
 	reqBody, err := json.Marshal(request)
 	if err != nil {
 		s.ChannelMessageSendReply(m.ChannelID, "Error: "+err.Error(), m.Reference())
-		fmt.Println(err)
+		log.Error().Err(err).Msg("Error marshalling request")
 		return
 	}
 

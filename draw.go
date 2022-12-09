@@ -48,13 +48,13 @@ func draw(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
 	}
 	reqBody, err := json.Marshal(request)
 	if err != nil {
-		fmt.Println(err)
+		log.Error().Err(err).Msg("Failed to marshal request")
 		s.ChannelMessageSendReply(m.ChannelID, "Error", m.MessageReference)
 		return
 	}
 	httpReq, err := http.NewRequest("POST", "https://api.openai.com/v1/images/generations", bytes.NewBuffer(reqBody))
 	if err != nil {
-		fmt.Println(err)
+		log.Error().Err(err).Msg("Failed to create request")
 		s.ChannelMessageSendReply(m.ChannelID, "Error", m.MessageReference)
 		return
 	}
@@ -64,7 +64,7 @@ func draw(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
 	resp, err := httpClient.Do(httpReq)
 	defer resp.Body.Close()
 	if err != nil {
-		fmt.Println(err)
+		log.Error().Err(err).Msg("Failed to send request")
 		s.ChannelMessageSendReply(m.ChannelID, "Error http", m.Reference())
 		return
 	}

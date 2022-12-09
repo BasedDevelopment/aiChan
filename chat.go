@@ -56,13 +56,13 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
 	}
 	reqBody, err := json.Marshal(request)
 	if err != nil {
-		fmt.Println(err)
+		log.Error().Err(err).Msg("Failed to marshal request")
 		s.ChannelMessageSendReply(m.ChannelID, "Chat: http err", m.MessageReference)
 		return
 	}
 	httpReq, err := http.NewRequest("POST", "https://api.openai.com/v1/completions", bytes.NewBuffer(reqBody))
 	if err != nil {
-		fmt.Println(err)
+		log.Error().Err(err).Msg("Failed to create request")
 		s.ChannelMessageSendReply(m.ChannelID, "Error", m.MessageReference)
 		return
 	}
@@ -100,6 +100,10 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
 
 	// Send response
 	aiRespStr := result["choices"].([]interface{})[0].(map[string]interface{})["text"].(string)
-	log.Info().Str("user", user).Str("prompt", msg).Str("resp", aiRespStr).Msg("Chat: Success")
-	s.ChannelMessageSendReply(m.ChannelID, aiRespStr, m.Reference())
+	if proceed := mod(s, m, aiRespStr); proceed == true {
+		log.Info().Str("user", user).Str("prompt", msg).Str("resp", aiRespStr).Msg("Chat: Success")
+		s.ChannelMessageSendReply(m.ChannelID, aiRespStr, m.Reference())
+	} else {
+		log.Warn().Str("user", user).Str("prompt", msg).Str("resp", aiRespStr).Msg("Chat: Flagged by mod endpoint")
+	}
 }
