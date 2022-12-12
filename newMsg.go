@@ -68,7 +68,9 @@ func newMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
 				Str("msg", msg).
 				Str("word", word).
 				Msg("Banned word detected")
-			s.ChannelMessageSendReply(m.ChannelID, "List: This message has been flagged as inappropriate. This incident will be reported.", m.Reference())
+			if _, err := s.ChannelMessageSendReply(m.ChannelID, "List: This message has been flagged as inappropriate. This incident will be reported.", m.Reference()); err != nil {
+				log.Error().Err(err).Msg("Chat: Error sending discord message")
+			}
 			return
 		}
 	}

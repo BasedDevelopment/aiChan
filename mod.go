@@ -40,8 +40,9 @@ func mod(s *discordgo.Session, m *discordgo.MessageCreate, msg string) (proceed 
 	}
 	reqBody, err := json.Marshal(request)
 	if err != nil {
-		s.ChannelMessageSendReply(m.ChannelID, "Error: "+err.Error(), m.Reference())
-		log.Error().Err(err).Msg("Error marshalling request")
+		if _, err := s.ChannelMessageSendReply(m.ChannelID, "Error: "+err.Error(), m.Reference()); err != nil {
+			log.Error().Err(err).Msg("Mod: Error sending discord message")
+		}
 		return
 	}
 
@@ -53,8 +54,10 @@ func mod(s *discordgo.Session, m *discordgo.MessageCreate, msg string) (proceed 
 	resp, err := httpClient.Do(httpReq)
 	defer resp.Body.Close()
 	if err != nil {
-		s.ChannelMessageSendReply(m.ChannelID, "Mod: http err", m.Reference())
-		log.Error().Err(err).Msg("Mod: Err sending mod req")
+		_, err := s.ChannelMessageSendReply(m.ChannelID, "Mod: http err", m.Reference())
+		if err != nil {
+			log.Error().Err(err).Msg("Mod: Error sending discord message")
+		}
 		return
 	}
 
@@ -67,13 +70,19 @@ func mod(s *discordgo.Session, m *discordgo.MessageCreate, msg string) (proceed 
 	// Handle response
 	if result == nil {
 		log.Error().Str("user", user).Str("prompt", msg).Msg("Mod: result is nil")
-		s.ChannelMessageSendReply(m.ChannelID, "Mod: results is nil", m.Reference())
+		_, err := s.ChannelMessageSendReply(m.ChannelID, "Mod: results is nil", m.Reference())
+		if err != nil {
+			log.Error().Err(err).Msg("Mod: Error sending discord message")
+		}
 		return
 	}
 	if result["results"] == nil {
 		resultStr := fmt.Sprintf("%#v", result)
-		log.Error().Str("user", user).Str("prompt", msg).Str("resp", resultStr).Msg("Mod: results[results] is nil")
-		s.ChannelMessageSendReply(m.ChannelID, "Mod: results[results] is nil", m.Reference())
+		log.Warn().Str("user", user).Str("prompt", msg).Str("resp", resultStr).Msg("Mod: results[results] is nil")
+		_, err := s.ChannelMessageSendReply(m.ChannelID, "Mod: results[results] is nil", m.Reference())
+		if err != nil {
+			log.Error().Err(err).Msg("Mod: Error sending discord message")
+		}
 		return
 	}
 
@@ -84,7 +93,10 @@ func mod(s *discordgo.Session, m *discordgo.MessageCreate, msg string) (proceed 
 		resultStr := fmt.Sprintf("%#v", resultIf)
 		log.Warn().Str("prompt", msg).Str("user", user).Str("results", resultStr).Msg("Flagged")
 		s.MessageReactionAdd(m.ChannelID, m.Reference().MessageID, "⚠️")
-		s.ChannelMessageSendReply(m.ChannelID, "modAI: This message has been flagged as inappropriate. This incident will be reported.", m.Reference())
+		_, err := s.ChannelMessageSendReply(m.ChannelID, "modAI: This message has been flagged as inappropriate. This incident will be reported.", m.Reference())
+		if err != nil {
+			log.Error().Err(err).Msg("Mod: Error sending discord message")
+		}
 		return
 	} else {
 		log.Info().Str("prompt", msg).Str("user", user).Msg("Not flagged")
