@@ -49,13 +49,17 @@ func draw(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
 	reqBody, err := json.Marshal(request)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to marshal request")
-		s.ChannelMessageSendReply(m.ChannelID, "Error", m.MessageReference)
+		if _, err := s.ChannelMessageSendReply(m.ChannelID, "Error", m.MessageReference); err != nil {
+			log.Error().Err(err).Msg("Draw: Error sending discord message")
+		}
 		return
 	}
 	httpReq, err := http.NewRequest("POST", "https://api.openai.com/v1/images/generations", bytes.NewBuffer(reqBody))
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create request")
-		s.ChannelMessageSendReply(m.ChannelID, "Error", m.MessageReference)
+		if _, err := s.ChannelMessageSendReply(m.ChannelID, "Error", m.MessageReference); err != nil {
+			log.Error().Err(err).Msg("Draw: Error sending discord message")
+		}
 		return
 	}
 	httpReq.Header.Set("Authorization", bearer)
@@ -65,7 +69,9 @@ func draw(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
 	defer resp.Body.Close()
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to send request")
-		s.ChannelMessageSendReply(m.ChannelID, "Error http", m.Reference())
+		if _, err := s.ChannelMessageSendReply(m.ChannelID, "Error http", m.Reference()); err != nil {
+			log.Error().Err(err).Msg("Draw: Error sending discord message")
+		}
 		return
 	}
 
@@ -80,24 +86,32 @@ func draw(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
 		respRead, _ := io.ReadAll(resp.Body)
 		respStr := string(respRead)
 		log.Error().Str("user", user).Str("resp", respStr).Str("prompt", msg).Msg("Draw: result is nil")
-		s.ChannelMessageSendReply(m.ChannelID, "Draw: result is nil", m.Reference())
+		if _, err := s.ChannelMessageSendReply(m.ChannelID, "Draw: result is nil", m.Reference()); err != nil {
+			log.Error().Err(err).Msg("Draw: Error sending discord message")
+		}
 		return
 	}
 	if result["data"] == nil {
 		if result["error"] != nil {
 			errMsg := result["error"].(map[string]interface{})["message"].(string)
 			log.Warn().Str("user", user).Str("prompt", msg).Str("error", errMsg).Msg("Draw: error")
-			s.ChannelMessageSendReply(m.ChannelID, "Draw: "+errMsg, m.Reference())
+			if _, err := s.ChannelMessageSendReply(m.ChannelID, "Draw: "+errMsg, m.Reference()); err != nil {
+				log.Error().Err(err).Msg("Draw: Error sending discord message")
+			}
 			return
 		}
 		resultStr := fmt.Sprintf("%#v", result)
 		log.Warn().Str("user", user).Str("prompt", msg).Str("resp", resultStr).Msg("Draw: data is nil")
-		s.ChannelMessageSendReply(m.ChannelID, "Draw: data is nil (likely OpenAI rejecting request due to inappropriate prompt)", m.Reference())
+		if _, err := s.ChannelMessageSendReply(m.ChannelID, "Draw: data is nil (likely OpenAI rejecting request due to inappropriate prompt)", m.Reference()); err != nil {
+			log.Error().Err(err).Msg("Draw: Error sending discord message")
+		}
 		return
 	}
 
 	// Send
 	aiRespStr := result["data"].([]interface{})[0].(map[string]interface{})["url"].(string)
 	log.Info().Str("user", user).Str("prompt", msg).Str("resp", aiRespStr).Msg("Draw: success")
-	s.ChannelMessageSendReply(m.ChannelID, aiRespStr, m.Reference())
+	if _, err := s.ChannelMessageSendReply(m.ChannelID, aiRespStr, m.Reference()); err != nil {
+		log.Error().Err(err).Msg("Draw: Error sending discord message")
+	}
 }

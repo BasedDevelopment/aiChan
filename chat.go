@@ -57,13 +57,17 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
 	reqBody, err := json.Marshal(request)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to marshal request")
-		s.ChannelMessageSendReply(m.ChannelID, "Chat: http err", m.MessageReference)
+		if _, err := s.ChannelMessageSendReply(m.ChannelID, "Chat: http err", m.MessageReference); err != nil {
+			log.Error().Err(err).Msg("Chat: Error sending discord message")
+		}
 		return
 	}
 	httpReq, err := http.NewRequest("POST", "https://api.openai.com/v1/completions", bytes.NewBuffer(reqBody))
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create request")
-		s.ChannelMessageSendReply(m.ChannelID, "Error", m.MessageReference)
+		if _, err := s.ChannelMessageSendReply(m.ChannelID, "Error", m.MessageReference); err != nil {
+			log.Error().Err(err).Msg("Chat: Error sending discord message")
+		}
 		return
 	}
 	httpReq.Header.Set("Authorization", bearer)
@@ -73,7 +77,9 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
 	defer resp.Body.Close()
 	if err != nil {
 		log.Error().Err(err).Msg("Error sending request")
-		s.ChannelMessageSendReply(m.ChannelID, "Error http", m.Reference())
+		if _, err := s.ChannelMessageSendReply(m.ChannelID, "Error http", m.Reference()); err != nil {
+			log.Error().Err(err).Msg("Chat: Error sending discord message")
+		}
 		return
 	}
 
@@ -88,13 +94,17 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
 		respRead, _ := io.ReadAll(resp.Body)
 		respStr := string(respRead)
 		log.Warn().Str("user", user).Str("resp", respStr).Str("prompt", msg).Msg("Chat: result is nil")
-		s.ChannelMessageSendReply(m.ChannelID, "Chat: results is nil", m.Reference())
+		if _, err := s.ChannelMessageSendReply(m.ChannelID, "Chat: results is nil", m.Reference()); err != nil {
+			log.Error().Err(err).Msg("Chat: Error sending discord message")
+		}
 		return
 	}
 	if result["choices"] == nil {
 		resultStr := fmt.Sprintf("%#v", result)
 		log.Warn().Str("user", user).Str("prompt", msg).Str("resp", resultStr).Msg("Chat: choices is nil")
-		s.ChannelMessageSendReply(m.ChannelID, "Chat: choices is nil", m.Reference())
+		if _, err := s.ChannelMessageSendReply(m.ChannelID, "Chat: choices is nil", m.Reference()); err != nil {
+			log.Error().Err(err).Msg("Chat: Error sending discord message")
+		}
 		return
 	}
 
@@ -102,7 +112,9 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
 	aiRespStr := result["choices"].([]interface{})[0].(map[string]interface{})["text"].(string)
 	if proceed := mod(s, m, aiRespStr); proceed == true {
 		log.Info().Str("user", user).Str("prompt", msg).Str("resp", aiRespStr).Msg("Chat: Success")
-		s.ChannelMessageSendReply(m.ChannelID, aiRespStr, m.Reference())
+		if _, err := s.ChannelMessageSendReply(m.ChannelID, aiRespStr, m.Reference()); err != nil {
+			log.Error().Err(err).Msg("Chat: Error sending discord message")
+		}
 	} else {
 		log.Warn().Str("user", user).Str("prompt", msg).Str("resp", aiRespStr).Msg("Chat: Flagged by mod endpoint")
 	}
