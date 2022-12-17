@@ -48,7 +48,7 @@ func newMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
 			return
 		}
 	}
-	isPrefix, _ := regexp.MatchString(`^[ai]{2}`, m.Content)
+	isPrefix, _ := regexp.MatchString(`^ai`, m.Content)
 	if isPrefix == false {
 		return
 	}
@@ -75,8 +75,8 @@ func newMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 	}
 
-	isChat, _ := regexp.MatchString(`^[ai!]{3}`, m.Content)
-	isDraw, _ := regexp.MatchString(`^[ai?]{3}`, m.Content)
+	isChat, _ := regexp.MatchString(`^ai!`, m.Content)
+	isDraw, _ := regexp.MatchString(`^ai?`, m.Content)
 
 	switch {
 	case isChat:
