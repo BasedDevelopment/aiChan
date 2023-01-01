@@ -1,4 +1,4 @@
-module github.com/ericzty/aiChan
+module github.com/BasedDevelopment/aiChan
 
 go 1.18
 
