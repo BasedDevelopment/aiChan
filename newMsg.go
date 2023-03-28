@@ -72,6 +72,14 @@ func newMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 	}
 
+	if m.Content[:3] == "ai#" {
+		log.Info().
+			Str("msg", msg).
+			Str("user", user).
+			Msg("AI Chat Request")
+		chat(s, m, msg)
+	}
+
 	if m.Content[:3] == "ai?" {
 		log.Info().
 			Str("msg", msg).
