@@ -26,20 +26,9 @@ import (
 )
 
 func newMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
-	msgChan := k.Strings("discord.msgChan")
 	bannedWords := k.Strings("discord.bannedWords")
 	bannedUsers := k.Strings("discord.bannedUsers")
 
-	var rightChan bool = false
-	for _, channel := range msgChan {
-		if m.ChannelID == channel {
-			rightChan = true
-			break
-		}
-	}
-	if rightChan != true {
-		return
-	}
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
@@ -48,8 +37,7 @@ func newMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
 			return
 		}
 	}
-	isPrefix, _ := regexp.MatchString(`^ai`, m.Content)
-	if isPrefix == false {
+	if m.Content[:3] == "ai" {
 		return
 	}
 	if len(m.Content) <= 4 {

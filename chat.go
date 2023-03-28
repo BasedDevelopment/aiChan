@@ -28,32 +28,70 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func chat(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
-	// Token
+type msg struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type req struct {
+	Model    string `json:"model"`
+	Messages []msg  `json:"messages"`
+	user     string `json:"user"`
+}
+
+var systemPrompt = msg{
+	Role:    "system",
+	Content: "You are a helpful assistant in the Stevens Class of 2026 discord server. You will be nice, and humorous, and you will be a good friend to everyone. Your name is Ai-Chan, and you will speak like an anime girl.",
+}
+
+func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string) {
 	token := k.String("ai.chat.token")
 	var bearer = "Bearer " + token
 
-	// send API req
-	type req struct {
-		Model             string  `json:"model"`
-		Prompt            string  `json:"prompt"`
-		Temperature       float64 `json:"temperature"`
-		Max_tokens        int     `json:"max_tokens"`
-		Top_p             float64 `json:"top_p"`
-		Frequency_penalty float64 `json:"frequency_penalty"`
-		Presence_penalty  float64 `json:"presence_penalty"`
-		user              string  `json:"user"`
+	msgs := []msg{}
+
+	// Get the channel object
+	channel, err := s.State.Channel(m.ChannelID)
+	if err != nil {
+		s.ChannelMessageSend(m.ChannelID, "Could not find channel.")
+		return
 	}
+
+	threadId := ""
+
+	if channel.IsThread() {
+		threadId = m.Message.ChannelID
+		msgsBytes, err := rdb.Get(ctx, threadId).Result()
+		if err != nil {
+			log.Error().Err(err).Msg("could not get thread messages")
+			s.ChannelMessageSendReply(m.ChannelID, "Could not get thread messages", m.Message.Reference())
+			return
+		}
+		err = json.Unmarshal([]byte(msgsBytes), &msgs)
+		if err != nil {
+			log.Error().Err(err).Msg("could not unmarshal thread messages")
+			s.ChannelMessageSendReply(m.ChannelID, "Could not unmarshal thread messages", m.Message.Reference())
+			return
+		}
+		_ = msgs
+	} else {
+		msgs := []msg{
+			systemPrompt,
+		}
+		_ = msgs
+	}
+
+	msgs = append(msgs, msg{
+		Role:    "user",
+		Content: prompt,
+	})
+
 	request := req{
-		Model:             "text-davinci-003",
-		Prompt:            msg,
-		Temperature:       0.9,
-		Max_tokens:        350,
-		Top_p:             1,
-		Frequency_penalty: 0,
-		Presence_penalty:  0.6,
-		user:              m.Author.ID,
+		Model:    "gpt-4",
+		Messages: msgs,
+		user:     m.Author.Username,
 	}
+
 	reqBody, err := json.Marshal(request)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to marshal request")
@@ -62,7 +100,7 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
 		}
 		return
 	}
-	httpReq, err := http.NewRequest("POST", "https://api.openai.com/v1/completions", bytes.NewBuffer(reqBody))
+	httpReq, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(reqBody))
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create request")
 		if _, err := s.ChannelMessageSendReply(m.ChannelID, "Error", m.MessageReference); err != nil {
@@ -93,7 +131,7 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
 	if result == nil {
 		respRead, _ := io.ReadAll(resp.Body)
 		respStr := string(respRead)
-		log.Warn().Str("user", user).Str("resp", respStr).Str("prompt", msg).Msg("Chat: result is nil")
+		log.Warn().Str("user", user).Str("resp", respStr).Str("prompt", prompt).Msg("Chat: result is nil")
 		if _, err := s.ChannelMessageSendReply(m.ChannelID, "Chat: results is nil", m.Reference()); err != nil {
 			log.Error().Err(err).Msg("Chat: Error sending discord message")
 		}
@@ -101,21 +139,45 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
 	}
 	if result["choices"] == nil {
 		resultStr := fmt.Sprintf("%#v", result)
-		log.Warn().Str("user", user).Str("prompt", msg).Str("resp", resultStr).Msg("Chat: choices is nil")
+		log.Warn().Str("user", user).Str("prompt", prompt).Str("resp", resultStr).Msg("Chat: choices is nil")
 		if _, err := s.ChannelMessageSendReply(m.ChannelID, "Chat: choices is nil", m.Reference()); err != nil {
 			log.Error().Err(err).Msg("Chat: Error sending discord message")
 		}
 		return
 	}
 
+	if !channel.IsThread() {
+		// Make thread
+		thread, err := s.MessageThreadStart(m.ChannelID, m.ID, user, 60)
+		if err != nil {
+			log.Error().Err(err).Msg("Chat: Error creating thread")
+			return
+		}
+		threadId = thread.ID
+	}
+
 	// Send response
-	aiRespStr := result["choices"].([]interface{})[0].(map[string]interface{})["text"].(string)
+	aiRespStr := result["choices"].([]interface{})[0].(map[string]interface{})["message"].(map[string]interface{})["content"].(string)
 	if proceed := mod(s, m, aiRespStr); proceed == true {
-		log.Info().Str("user", user).Str("prompt", msg).Str("resp", aiRespStr).Msg("Chat: Success")
-		if _, err := s.ChannelMessageSendReply(m.ChannelID, aiRespStr, m.Reference()); err != nil {
-			log.Error().Err(err).Msg("Chat: Error sending discord message")
+		log.Info().Str("user", user).Str("prompt", prompt).Str("resp", aiRespStr).Msg("Chat: Success")
+		if channel.IsThread() {
+			if _, err := s.ChannelMessageSendReply(m.ChannelID, aiRespStr, m.Reference()); err != nil {
+				log.Error().Err(err).Msg("Chat: Error sending discord message")
+			}
+		} else {
+			if _, err := s.ChannelMessageSend(threadId, "<@"+m.Message.Author.ID+"> "+aiRespStr); err != nil {
+				log.Error().Err(err).Msg("Chat: Error sending discord message")
+			}
 		}
 	} else {
-		log.Warn().Str("user", user).Str("prompt", msg).Str("resp", aiRespStr).Msg("Chat: Flagged by mod endpoint")
+		log.Warn().Str("user", user).Str("prompt", prompt).Str("resp", aiRespStr).Msg("Chat: Flagged by mod endpoint")
+	}
+
+	msgsBytes, err := json.Marshal(msgs)
+	err = rdb.Set(ctx, threadId, msgsBytes, 0).Err()
+	if err != nil {
+		log.Error().Err(err).Msg("could not set thread messages, please send your request again outside of this thread")
+		s.ChannelMessageSendReply(m.ChannelID, "Could not set thread messages", m.Message.Reference())
+		return
 	}
 }
