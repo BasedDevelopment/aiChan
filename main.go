@@ -18,6 +18,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"syscall"
@@ -26,6 +27,7 @@ import (
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/toml"
 	"github.com/knadh/koanf/providers/file"
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -37,6 +39,12 @@ const (
 var (
 	k      = koanf.New(".")
 	parser = toml.Parser()
+	rdb    = redis.NewClient(&redis.Options{
+		Addr:     "172.17.0.3:6379",
+		Password: "",
+		DB:       0,
+	})
+	ctx = context.Background()
 )
 
 func init() {
@@ -58,6 +66,12 @@ func main() {
 	dg, err := discordgo.New("Bot " + k.String("discord.token"))
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create Discord session")
+		return
+	}
+
+	_, err = rdb.Ping(ctx).Result()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to connect to Redis")
 		return
 	}
 
