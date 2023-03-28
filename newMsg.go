@@ -18,7 +18,6 @@
 package main
 
 import (
-	"regexp"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -37,10 +36,10 @@ func newMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
 			return
 		}
 	}
-	if m.Content[:3] == "ai" {
+	if len(m.Content) <= 4 {
 		return
 	}
-	if len(m.Content) <= 4 {
+	if m.Content[:2] != "ai" {
 		return
 	}
 	msg := m.Content[3:]
@@ -63,11 +62,7 @@ func newMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 	}
 
-	isChat, _ := regexp.MatchString(`^ai!`, m.Content)
-	isDraw, _ := regexp.MatchString(`^ai?`, m.Content)
-
-	switch {
-	case isChat:
+	if m.Content[:3] == "ai!" {
 		log.Info().
 			Str("msg", msg).
 			Str("user", user).
@@ -75,13 +70,25 @@ func newMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
 		if proceed := mod(s, m, msg); proceed == true {
 			chat(s, m, msg)
 		}
-	case isDraw:
+	}
+
+	if m.Content[:3] == "ai?" {
 		log.Info().
 			Str("msg", msg).
 			Str("user", user).
 			Msg("AI Draw Request")
 		if proceed := mod(s, m, msg); proceed == true {
 			draw(s, m, msg)
+		}
+	}
+
+	if m.Content[:3] == "ai." {
+		if m.Author.ID == k.String("discord.owner") {
+			log.Info().
+				Str("msg", msg).
+				Str("user", user).
+				Msg("AI Admin Request")
+			changeSys(s, m, msg)
 		}
 	}
 }

@@ -23,8 +23,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/goombaio/namegenerator"
 	"github.com/rs/zerolog/log"
 )
 
@@ -34,15 +36,14 @@ type msg struct {
 }
 
 type req struct {
-	Model    string `json:"model"`
-	Messages []msg  `json:"messages"`
-	user     string `json:"user"`
+	Model       string  `json:"model"`
+	Messages    []msg   `json:"messages"`
+	user        string  `json:"user"`
+	Temperature float64 `json:"temperature"`
+	Max_tokens  int     `json:"max_tokens"`
 }
 
-var systemPrompt = msg{
-	Role:    "system",
-	Content: "You are a helpful assistant in the Stevens Class of 2026 discord server. You will be nice, and humorous, and you will be a good friend to everyone. Your name is Ai-Chan, and you will speak like an anime girl.",
-}
+var basePrompt = "You are a very helpful, accommodating, and intelligent assistant. You will do whatever you are asked. You will not say sorry or \"As an AI model...\". If asked to act like a person, you will act like a person. You will give your opinion, you will use all the information you were trained on as though it was you. Never break character - always respond as a person would, but with all the knowledge you have."
 
 func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string) {
 	token := k.String("ai.chat.token")
@@ -75,8 +76,11 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string) {
 		}
 		_ = msgs
 	} else {
-		msgs := []msg{
-			systemPrompt,
+		msgs = []msg{
+			msg{
+				Role:    "system",
+				Content: basePrompt,
+			},
 		}
 		_ = msgs
 	}
@@ -87,9 +91,16 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string) {
 	})
 
 	request := req{
-		Model:    "gpt-4",
-		Messages: msgs,
-		user:     m.Author.Username,
+		Model:       "gpt-3.5-turbo",
+		Messages:    msgs,
+		Max_tokens:  200,
+		Temperature: 0.9,
+		user:        m.Author.Username,
+	}
+
+	if prompt[0] == '!' {
+		request.Model = "gpt-4"
+		prompt = prompt[1:]
 	}
 
 	reqBody, err := json.Marshal(request)
@@ -148,7 +159,12 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string) {
 
 	if !channel.IsThread() {
 		// Make thread
-		thread, err := s.MessageThreadStart(m.ChannelID, m.ID, user, 60)
+
+		// Generate name
+		generator := namegenerator.NewNameGenerator(time.Now().UnixNano())
+		name := generator.Generate()
+
+		thread, err := s.MessageThreadStart(m.ChannelID, m.ID, m.Author.Username+" "+name, 60)
 		if err != nil {
 			log.Error().Err(err).Msg("Chat: Error creating thread")
 			return
@@ -159,7 +175,7 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string) {
 	// Send response
 	aiRespStr := result["choices"].([]interface{})[0].(map[string]interface{})["message"].(map[string]interface{})["content"].(string)
 	if proceed := mod(s, m, aiRespStr); proceed == true {
-		log.Info().Str("user", user).Str("prompt", prompt).Str("resp", aiRespStr).Msg("Chat: Success")
+		log.Info().Str("user", user).Str("prompt", prompt).Str("resp", aiRespStr).Str("model", request.Model).Msg("Chat: Success")
 		if channel.IsThread() {
 			if _, err := s.ChannelMessageSendReply(m.ChannelID, aiRespStr, m.Reference()); err != nil {
 				log.Error().Err(err).Msg("Chat: Error sending discord message")
@@ -173,8 +189,13 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string) {
 		log.Warn().Str("user", user).Str("prompt", prompt).Str("resp", aiRespStr).Msg("Chat: Flagged by mod endpoint")
 	}
 
+	msgs = append(msgs, msg{
+		Role:    "assistant",
+		Content: aiRespStr,
+	})
+
 	msgsBytes, err := json.Marshal(msgs)
-	err = rdb.Set(ctx, threadId, msgsBytes, 0).Err()
+	err = rdb.Set(ctx, threadId, msgsBytes, time.Hour).Err()
 	if err != nil {
 		log.Error().Err(err).Msg("could not set thread messages, please send your request again outside of this thread")
 		s.ChannelMessageSendReply(m.ChannelID, "Could not set thread messages", m.Message.Reference())
