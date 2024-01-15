@@ -38,7 +38,7 @@ type msg struct {
 type req struct {
 	Model       string  `json:"model"`
 	Messages    []msg   `json:"messages"`
-	user        string  `json:"user"`
+	User        string  `json:"user"`
 	Temperature float64 `json:"temperature"`
 	Max_tokens  int     `json:"max_tokens"`
 }
@@ -91,16 +91,16 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string) {
 	})
 
 	request := req{
-		Model:       "gpt-3.5-turbo",
+		Model:       "gpt-3.5-turbo-1106",
 		Messages:    msgs,
 		Max_tokens:  200,
 		Temperature: 0.9,
-		user:        m.Author.Username,
+		User:        m.Author.Username,
 	}
 
 	if prompt[0] == '!' {
-		request.Model = "gpt-4"
-		request.Max_tokens = 100
+		request.Model = "gpt-4-1106-preview"
+		request.Max_tokens = 150
 		prompt = prompt[1:]
 	}
 
@@ -175,9 +175,24 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string) {
 
 	// Send response
 	aiRespStr := result["choices"].([]interface{})[0].(map[string]interface{})["message"].(map[string]interface{})["content"].(string)
+	aiRespUsage := result["usage"].(map[string]interface{})
+	aiRespUsageStr := fmt.Sprintf("Prompt tokens: %v, Completion tokens: %v, Total tokens: %v", aiRespUsage["prompt_tokens"], aiRespUsage["completion_tokens"], aiRespUsage["total_tokens"])
+	totalPrice := 0.0
+	// https://openai.com/pricing
+	switch request.Model {
+	case "gpt-3.5-turbo":
+		totalPrice = 0.000002 * aiRespUsage["total_tokens"].(float64)
+		// this is now outdated...
+	case "gpt-4":
+		promptPrice := 0.00003 * aiRespUsage["prompt_tokens"].(float64)
+		completionPrice := 0.00006 * aiRespUsage["completion_tokens"].(float64)
+		totalPrice = promptPrice + completionPrice
+	}
+	totalPriceStr := fmt.Sprintf("%.6f", totalPrice)
 	if proceed := mod(s, m, aiRespStr); proceed == true {
-		log.Info().Str("user", user).Str("prompt", prompt).Str("resp", aiRespStr).Str("model", request.Model).Msg("Chat: Success")
+		log.Info().Str("user", user).Str("prompt", prompt).Str("resp", aiRespStr).Str("model", request.Model).Str("usage", aiRespUsageStr).Str("price", totalPriceStr).Msg("Chat: Success")
 		if channel.IsThread() {
+			//		if _, err := s.ChannelMessageSendReply(m.ChannelID, aiRespStr+" | Total price: $"+totalPriceStr, m.Reference()); err != nil {
 			if _, err := s.ChannelMessageSendReply(m.ChannelID, aiRespStr, m.Reference()); err != nil {
 				log.Error().Err(err).Msg("Chat: Error sending discord message")
 			}

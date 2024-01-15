@@ -24,9 +24,9 @@ import (
 	"syscall"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/toml"
 	"github.com/knadh/koanf/providers/file"
+	"github.com/knadh/koanf/v2"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -40,7 +40,7 @@ var (
 	k      = koanf.New(".")
 	parser = toml.Parser()
 	rdb    = redis.NewClient(&redis.Options{
-		Addr:     "172.17.0.3:6379",
+		Addr:     "172.17.0.2:6379",
 		Password: "",
 		DB:       0,
 	})
@@ -50,7 +50,7 @@ var (
 func init() {
 	// Init logger
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
+	//log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
 
 	// Load config
 	if err := k.Load(file.Provider(configPath), toml.Parser()); err != nil {

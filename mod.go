@@ -99,7 +99,7 @@ func mod(s *discordgo.Session, m *discordgo.MessageCreate, msg string) (proceed 
 		}
 		return
 	} else {
-		log.Info().Str("prompt", msg).Str("user", user).Msg("Not flagged")
+		//log.Info().Str("prompt", msg).Str("user", user).Msg("Not flagged")
 		s.MessageReactionAdd(m.ChannelID, m.Reference().MessageID, "✅")
 		proceed = true
 		return

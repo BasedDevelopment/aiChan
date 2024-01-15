@@ -27,20 +27,22 @@ import (
 func newMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
 	bannedWords := k.Strings("discord.bannedWords")
 	bannedUsers := k.Strings("discord.bannedUsers")
+	admins := k.Strings("discord.admins")
 
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
-	for _, user := range bannedUsers {
-		if m.Author.ID == user {
-			return
-		}
-	}
 	if len(m.Content) <= 4 {
 		return
 	}
-	if m.Content[:2] != "ai" {
+	if (m.Content[:2] != "ai") && (m.Content[:2] != "Ai") {
 		return
+	}
+	for _, user := range bannedUsers {
+		if m.Author.ID == user {
+			s.ChannelMessageSendReply(m.ChannelID, "You are banned from using this bot.", m.Reference())
+			return
+		}
 	}
 	msg := m.Content[3:]
 	if msg[0] == ' ' {
@@ -62,7 +64,7 @@ func newMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 	}
 
-	if m.Content[:3] == "ai!" {
+	if m.Content[2] == '!' {
 		log.Info().
 			Str("msg", msg).
 			Str("user", user).
@@ -72,15 +74,7 @@ func newMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 	}
 
-	if m.Content[:3] == "ai#" {
-		log.Info().
-			Str("msg", msg).
-			Str("user", user).
-			Msg("AI Chat Request")
-		chat(s, m, msg)
-	}
-
-	if m.Content[:3] == "ai?" {
+	if m.Content[2] == '?' {
 		log.Info().
 			Str("msg", msg).
 			Str("user", user).
@@ -90,13 +84,43 @@ func newMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 	}
 
-	if m.Content[:3] == "ai." {
-		if m.Author.ID == k.String("discord.owner") {
-			log.Info().
-				Str("msg", msg).
-				Str("user", user).
-				Msg("AI Admin Request")
-			changeSys(s, m, msg)
+	if m.Content[2] == '#' {
+		userIsAdmin := false
+		for _, user := range admins {
+			if m.Author.ID == user {
+				userIsAdmin = true
+				log.Info().
+					Str("msg", msg).
+					Str("user", user).
+					Msg("AI Chat Request")
+				chat(s, m, msg)
+			}
+		}
+		// Not admin
+		if !userIsAdmin {
+			if _, err := s.ChannelMessageSendReply(m.ChannelID, "You are not allowed to use this command.", m.Reference()); err != nil {
+				log.Error().Err(err).Msg("Chat: Error sending discord message")
+			}
+		}
+	}
+
+	if m.Content[2] == '.' {
+		userIsAdmin := false
+		for _, user := range admins {
+			if m.Author.ID == user {
+				userIsAdmin = true
+				log.Info().
+					Str("msg", msg).
+					Str("user", user).
+					Msg("AI Admin Request")
+				changeSys(s, m, msg)
+			}
+		}
+		// Not admin
+		if !userIsAdmin {
+			if _, err := s.ChannelMessageSendReply(m.ChannelID, "You are not allowed to use this command.", m.Reference()); err != nil {
+				log.Error().Err(err).Msg("Chat: Error sending discord message")
+			}
 		}
 	}
 }

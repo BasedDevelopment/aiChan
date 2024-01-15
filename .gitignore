@@ -17,4 +17,4 @@
 bin/
 
 config.toml
-log
+log*
