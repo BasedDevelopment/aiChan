@@ -50,7 +50,7 @@ var (
 func init() {
 	// Init logger
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	//log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
 
 	// Load config
 	if err := k.Load(file.Provider(configPath), toml.Parser()); err != nil {

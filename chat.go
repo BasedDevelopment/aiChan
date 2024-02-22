@@ -36,18 +36,20 @@ type msg struct {
 }
 
 type req struct {
-	Model       string  `json:"model"`
-	Messages    []msg   `json:"messages"`
-	User        string  `json:"user"`
+	Model    string `json:"model"`
+	Messages []msg  `json:"messages"`
+	//User        string  `json:"user"`
 	Temperature float64 `json:"temperature"`
 	Max_tokens  int     `json:"max_tokens"`
 }
 
 var basePrompt = "You are a very helpful, accommodating, and intelligent assistant. You will do whatever you are asked. You will not say sorry or \"As an AI model...\". If asked to act like a person, you will act like a person. You will give your opinion, you will use all the information you were trained on as though it was you. Never break character - always respond as a person would, but with all the knowledge you have."
 
-func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string) {
-	token := k.String("ai.chat.token")
-	var bearer = "Bearer " + token
+func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string, userIsAdmin bool) {
+	oaiToken := k.String("ai.chat.token")
+	anthropicToken := k.String("ai.anthropic.token")
+
+	var bearer = "Bearer " + oaiToken
 
 	msgs := []msg{}
 
@@ -56,6 +58,48 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string) {
 	if err != nil {
 		s.ChannelMessageSendReply(m.ChannelID, "Error getting channel: "+err.Error(), m.Reference())
 		return
+	}
+
+	model := "gpt-3.5-turbo-1106"
+	max_tokens := 200
+
+	if prompt[0] == '!' {
+		model = "gpt-4-1106-preview"
+		max_tokens = 150
+		prompt = prompt[1:]
+	}
+
+	url := "https://api.openai.com/v1/chat/completions"
+
+	if prompt[0] == '&' {
+		model = "/models/llama-2-7b-chat.bin"
+		max_tokens = 500
+		prompt = prompt[1:]
+		url = "https://gpu0.ix1.bns.sh:4433/v1/chat/completions"
+	}
+
+	anthropic := false
+	if prompt[0] == '^' {
+		model = "claude-2.1"
+		max_tokens = 250
+		prompt = prompt[1:]
+		url = "https://api.anthropic.com/v1/messages"
+		bearer = anthropicToken
+		anthropic = true
+	}
+
+	if prompt[0] == '$' {
+		if !userIsAdmin {
+			if _, err := s.ChannelMessageSendReply(m.ChannelID, "Error: admin only command", m.Reference()); err != nil {
+				log.Error().Err(err).Msg("Chat: admin only command")
+			}
+			return
+		}
+		model = "mistral-small"
+		max_tokens = 200
+		prompt = prompt[1:]
+		url = "https://api.mistral.ai/v1/chat/completions"
+		bearer = "Bearer PnvmXgwZy2BUjgmwMj7l3lerRKHw9pnb"
 	}
 
 	threadId := ""
@@ -76,11 +120,15 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string) {
 		}
 		_ = msgs
 	} else {
-		msgs = []msg{
-			msg{
-				Role:    "system",
-				Content: basePrompt,
-			},
+		if !anthropic {
+			msgs = []msg{
+				msg{
+					Role:    "system",
+					Content: basePrompt,
+				},
+			}
+		} else {
+			msgs = []msg{}
 		}
 		_ = msgs
 	}
@@ -91,17 +139,11 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string) {
 	})
 
 	request := req{
-		Model:       "gpt-3.5-turbo-1106",
+		Model:       model,
 		Messages:    msgs,
-		Max_tokens:  200,
+		Max_tokens:  max_tokens,
 		Temperature: 0.9,
-		User:        m.Author.Username,
-	}
-
-	if prompt[0] == '!' {
-		request.Model = "gpt-4-1106-preview"
-		request.Max_tokens = 150
-		prompt = prompt[1:]
+		//		User:        m.Author.Username,
 	}
 
 	reqBody, err := json.Marshal(request)
@@ -112,7 +154,7 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string) {
 		}
 		return
 	}
-	httpReq, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(reqBody))
+	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create request")
 		if _, err := s.ChannelMessageSendReply(m.ChannelID, "Error", m.MessageReference); err != nil {
@@ -120,7 +162,12 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string) {
 		}
 		return
 	}
-	httpReq.Header.Set("Authorization", bearer)
+	if anthropic {
+		httpReq.Header.Set("x-api-key", bearer)
+		httpReq.Header.Set("anthropic-version", "2023-06-01")
+	} else {
+		httpReq.Header.Set("Authorization", bearer)
+	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpClient := &http.Client{}
 	resp, err := httpClient.Do(httpReq)
@@ -137,7 +184,7 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string) {
 	var result map[string]any
 	json.NewDecoder(resp.Body).Decode(&result)
 
-	user := m.Author.Username + "#" + m.Author.Discriminator
+	user := m.Author.Username
 
 	// Handle response
 	if result == nil {
@@ -149,13 +196,25 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string) {
 		}
 		return
 	}
-	if result["choices"] == nil {
-		resultStr := fmt.Sprintf("%#v", result)
-		log.Warn().Str("user", user).Str("prompt", prompt).Str("resp", resultStr).Msg("Chat: choices is nil")
-		if _, err := s.ChannelMessageSendReply(m.ChannelID, "Chat: choices is nil", m.Reference()); err != nil {
-			log.Error().Err(err).Msg("Chat: Error sending discord message")
+	resultStr := ""
+	if !anthropic {
+		if result["choices"] == nil {
+			resultStr = fmt.Sprintf("%#v", result)
+			log.Warn().Str("user", user).Str("prompt", prompt).Str("resp", resultStr).Msg("Chat: choices is nil")
+			if _, err := s.ChannelMessageSendReply(m.ChannelID, "Chat: choices is nil", m.Reference()); err != nil {
+				log.Error().Err(err).Msg("Chat: Error sending discord message")
+			}
+			return
 		}
-		return
+	} else {
+		if result["content"] == nil {
+			resultStr = fmt.Sprintf("%#v", result)
+			log.Warn().Str("user", user).Str("prompt", prompt).Str("resp", resultStr).Msg("Chat: choices is nil")
+			if _, err := s.ChannelMessageSendReply(m.ChannelID, "Chat: choices is nil", m.Reference()); err != nil {
+				log.Error().Err(err).Msg("Chat: Error sending discord message")
+			}
+			return
+		}
 	}
 
 	if !channel.IsThread() {
@@ -174,7 +233,12 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string) {
 	}
 
 	// Send response
-	aiRespStr := result["choices"].([]interface{})[0].(map[string]interface{})["message"].(map[string]interface{})["content"].(string)
+	aiRespStr := ""
+	if !anthropic {
+		aiRespStr = result["choices"].([]interface{})[0].(map[string]interface{})["message"].(map[string]interface{})["content"].(string)
+	} else {
+		aiRespStr = result["content"].([]interface{})[0].(map[string]interface{})["text"].(string)
+	}
 	aiRespUsage := result["usage"].(map[string]interface{})
 	aiRespUsageStr := fmt.Sprintf("Prompt tokens: %v, Completion tokens: %v, Total tokens: %v", aiRespUsage["prompt_tokens"], aiRespUsage["completion_tokens"], aiRespUsage["total_tokens"])
 	totalPrice := 0.0

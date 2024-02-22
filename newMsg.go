@@ -18,14 +18,11 @@
 package main
 
 import (
-	"strings"
-
 	"github.com/bwmarrin/discordgo"
 	"github.com/rs/zerolog/log"
 )
 
 func newMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
-	bannedWords := k.Strings("discord.bannedWords")
 	bannedUsers := k.Strings("discord.bannedUsers")
 	admins := k.Strings("discord.admins")
 
@@ -44,23 +41,18 @@ func newMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
 			return
 		}
 	}
+
 	msg := m.Content[3:]
 	if msg[0] == ' ' {
 		msg = msg[1:]
 	}
-	user := m.Author.Username + "#" + m.Author.Discriminator
-	for _, word := range bannedWords {
-		if strings.Contains(msg, word) {
-			s.MessageReactionAdd(m.ChannelID, m.Reference().MessageID, "⚠️")
-			log.Warn().
-				Str("user", user).
-				Str("msg", msg).
-				Str("word", word).
-				Msg("Banned word detected")
-			if _, err := s.ChannelMessageSendReply(m.ChannelID, "List: This message has been flagged as inappropriate. This incident will be reported.", m.Reference()); err != nil {
-				log.Error().Err(err).Msg("Chat: Error sending discord message")
-			}
-			return
+
+	user := m.Author.Username
+
+	userIsAdmin := false
+	for _, user := range admins {
+		if m.Author.ID == user {
+			userIsAdmin = true
 		}
 	}
 
@@ -70,7 +62,7 @@ func newMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
 			Str("user", user).
 			Msg("AI Chat Request")
 		if proceed := mod(s, m, msg); proceed == true {
-			chat(s, m, msg)
+			chat(s, m, msg, userIsAdmin)
 		}
 	}
 
@@ -85,16 +77,12 @@ func newMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	if m.Content[2] == '#' {
-		userIsAdmin := false
-		for _, user := range admins {
-			if m.Author.ID == user {
-				userIsAdmin = true
-				log.Info().
-					Str("msg", msg).
-					Str("user", user).
-					Msg("AI Chat Request")
-				chat(s, m, msg)
-			}
+		if userIsAdmin {
+			log.Info().
+				Str("msg", msg).
+				Str("user", user).
+				Msg("AI Chat Request")
+			chat(s, m, msg, userIsAdmin)
 		}
 		// Not admin
 		if !userIsAdmin {
@@ -105,16 +93,12 @@ func newMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	if m.Content[2] == '.' {
-		userIsAdmin := false
-		for _, user := range admins {
-			if m.Author.ID == user {
-				userIsAdmin = true
-				log.Info().
-					Str("msg", msg).
-					Str("user", user).
-					Msg("AI Admin Request")
-				changeSys(s, m, msg)
-			}
+		if userIsAdmin {
+			log.Info().
+				Str("msg", msg).
+				Str("user", user).
+				Msg("AI Admin Request")
+			changeSys(s, m, msg)
 		}
 		// Not admin
 		if !userIsAdmin {

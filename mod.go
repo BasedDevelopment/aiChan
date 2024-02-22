@@ -22,12 +22,33 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/rs/zerolog/log"
 )
 
 func mod(s *discordgo.Session, m *discordgo.MessageCreate, msg string) (proceed bool) {
+	// Wordlist ban
+	bannedWords := k.Strings("discord.bannedWords")
+
+	user := m.Author.Username
+	for _, word := range bannedWords {
+		if strings.Contains(msg, word) {
+			s.MessageReactionAdd(m.ChannelID, m.Reference().MessageID, "⚠️")
+			log.Warn().
+				Str("user", user).
+				Str("msg", msg).
+				Str("word", word).
+				Msg("Banned word detected")
+			if _, err := s.ChannelMessageSendReply(m.ChannelID, "List: This message has been flagged as inappropriate. This incident will be reported.", m.Reference()); err != nil {
+				log.Error().Err(err).Msg("Chat: Error sending discord message")
+			}
+			return
+		}
+	}
+
+	// OpenAI Moderation Endpoint
 	proceed = false
 
 	// Token
@@ -64,8 +85,6 @@ func mod(s *discordgo.Session, m *discordgo.MessageCreate, msg string) (proceed 
 	// Decode response
 	var result map[string]any
 	json.NewDecoder(resp.Body).Decode(&result)
-
-	user := m.Author.Username + "#" + m.Author.Discriminator
 
 	// Handle response
 	if result == nil {
