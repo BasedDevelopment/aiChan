@@ -261,7 +261,7 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string, userI
 				log.Error().Err(err).Msg("Chat: Error sending discord message")
 			}
 		} else {
-			if _, err := s.ChannelMessageSend(threadId, "<@"+m.Message.Author.ID+"> "+aiRespStr); err != nil {
+			if _, err := s.ChannelMessageSend(threadId, aiRespStr); err != nil {
 				log.Error().Err(err).Msg("Chat: Error sending discord message")
 			}
 		}
