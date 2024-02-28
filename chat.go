@@ -109,7 +109,7 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string, userI
 		msgsBytes, err := rdb.Get(ctx, threadId).Result()
 		if err != nil {
 			log.Error().Err(err).Msg("could not get thread messages")
-			s.ChannelMessageSendReply(m.ChannelID, "Redis Error: Could not get thread messges. It is likely that the thread has expired (1hr). Please start the converation again outside of the thread.", m.Message.Reference())
+			s.ChannelMessageSendReply(m.ChannelID, "Redis Error: Could not get thread messges. It is likely that the thread has expired (24hr). Please start the converation again outside of the thread.", m.Message.Reference())
 			return
 		}
 		err = json.Unmarshal([]byte(msgsBytes), &msgs)
@@ -275,7 +275,7 @@ func chat(s *discordgo.Session, m *discordgo.MessageCreate, prompt string, userI
 	})
 
 	msgsBytes, err := json.Marshal(msgs)
-	err = rdb.Set(ctx, threadId, msgsBytes, time.Hour).Err()
+	err = rdb.Set(ctx, threadId, msgsBytes, 24*time.Hour).Err()
 	if err != nil {
 		log.Error().Err(err).Msg("could not set thread messages, please send your request again outside of this thread")
 		s.ChannelMessageSendReply(m.ChannelID, "Redis Error: Could not save thread context.", m.Message.Reference())
