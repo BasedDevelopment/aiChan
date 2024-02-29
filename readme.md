@@ -6,6 +6,6 @@ It uses redis to store previous messages in the thread, so we can retrive it lat
 
 `ai!! <message>` to call GPT-3
 
-![screenshot](https://not-a.link/8H3RMx8.png)
+![screenshot](https://not-a.link/6tQBX2e.png)
 
-DM finnekit#0001 for hosted version invite link.
+DM `ezrieh` for hosted version invite link.
