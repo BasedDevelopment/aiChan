@@ -4,7 +4,7 @@ It uses redis to store previous messages in the thread, so we can retrive it lat
 
 `ai! <message>` to call GPT-3.5-turbo
 
-`ai!! <message>` to call GPT-3
+`ai!! <message>` to call GPT-4
 
 ![screenshot](https://not-a.link/6tQBX2e.png)
 
